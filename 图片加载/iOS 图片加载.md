@@ -44,7 +44,9 @@
 > 
 > * ```CGImageSourceCreateImageAtIndex:``` 加载图片后，进行解码，通过设置kCGImageSourceShouldCache ，可以在图片的生命周期内，保存图片解码后的数据。
  
-```NSURL *imageURL = [NSURL fileURLWithPath:filePath];
+
+```
+NSURL *imageURL = [NSURL fileURLWithPath:filePath];
 NSDictionary *options = @{(__bridge id)kCGImageSourceShouldCache: @YES}; 
 CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
 CGImageRef imageRef = CGImageSourceCreateImageAtIndex(source, 0,(__bridge CFDictionaryRef)options);
@@ -53,9 +55,12 @@ CGImageRelease(imageRef);
 CFRelease(source);
 ```
 
+
 > * 使用UIKit 重绘图片，实现强制解码。图片不缓存 
 
-```UIGraphicsBeginImageContextWithOptions(imageView.bounds.size, YES, 0);
+
+```
+UIGraphicsBeginImageContextWithOptions(imageView.bounds.size, YES, 0);
 [image drawInRect:imageView.bounds];
 image = UIGraphicsGetImageFromCurrentImageContext();
 UIGraphicsEndImageContext();
