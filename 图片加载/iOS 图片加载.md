@@ -32,7 +32,18 @@
 > * 生成图片数据的时候，使图片的字节对齐，避免了Core Animation 的拷贝操作。
 > * 使用mmap 进行磁盘的I/O 操作。
 
-参考链接：[FastImageCache 解析](http://blog.cnbang.net/tech/2578/)
+
+
+
+参考链接：
+
+[FastImageCache 解析](http://blog.cnbang.net/tech/2578/)
+
+[Creating a Bitmap Graphics Context](https://developer.apple.com/library/ios/documentation/GraphicsImaging/Conceptual/drawingwithquartz2d/dq_context/dq_context.html#//apple_ref/doc/uid/TP30001066-CH203-CJBHBFFE)
+
+[How CacheLine affect the performance of loading data](http://stackoverflow.com/questions/23790837/what-is-byte-alignment-cache-line-alignment-for-core-animation-why-it-matters)
+
+[Apple iPhone CPU](https://zh.wikipedia.org/wiki/%E8%98%8B%E6%9E%9CA8)
 
 ##把图像数据赋值给UIImageView ，如果图片数据为没有解码的png / jepg 格式，会先解码为位图数据
 
