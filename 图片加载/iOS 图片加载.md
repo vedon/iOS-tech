@@ -115,5 +115,39 @@ UIGraphicsEndImageContext();
 
 
 **```Rasterize```**启用shouldRasterize属性会将图层绘制到一个屏幕之外的图像。然后这个图像将会被缓存起来并绘制到实际图层的contents和子图层。如果有很多的子图层或者有复杂的效果应用，这样做就会比重绘所有事务的所有帧划得来得多。但是光栅化原始图像需要时间，而且还会消耗额外的内存。
+当我们使用得当时，光栅化可以提供很大的性能优势但是一定要避免作用在内容不断变动的图层上，否则它缓存方面的好处就会消失，而且会让性能变的更糟。
 
-当我们使用得当时，光栅化可以提供很大的性能优势，但是一定要避免作用在内容不断变动的图层上，否则它缓存方面的好处就会消失，而且会让性能变的更糟
+图片渲染可以异步的执行，但是有没有遇到当使用tableview 来显示渲染后的内容,添加到```contentView```，```NSString```的sizeWithAttributes,sizeWithFont 和计算cell高度的```systemLayoutSizeFittingSize``` 等都是要在主线程执行的。主线程忙碌会影响用户体验，特别是滚动tableView的时候.
+
+![](./Screen Shot 2015-06-30 at 10.56.26 AM.png)
+
+把Cell 的content 分解为内容和渲染的方法。内容就是：UIImageView ,Labels。渲染的方法就是为UIImageView 准备图片，为Labels 准备要显示的文字。涉及到渲染的东西一般都是都可以在子线程执行，而内容一般要在主线程执行。在主线程空闲的时候，我们可以做一些预加载。
+
+**主线程什么时候空闲呀？？？**
+
+主线程的[RunLoop](https://developer.apple.com/library/ios/documentation/Cocoa/Conceptual/Multithreading/RunLoopManagement/RunLoopManagement.html)的状态是可以通过系统提供的API 获取的。
+
+可被监听的状态有：
+
+```
+typedef CF_OPTIONS(CFOptionFlags, CFRunLoopActivity) {
+    kCFRunLoopEntry = (1UL << 0),  		//RunLoop 开始
+    kCFRunLoopBeforeTimers = (1UL << 1),//将要执行timer
+    kCFRunLoopBeforeSources = (1UL << 2),//将要执行Source
+    kCFRunLoopBeforeWaiting = (1UL << 5),//将要睡眠了
+    kCFRunLoopAfterWaiting = (1UL << 6), //被唤醒了
+    kCFRunLoopExit = (1UL << 7),			 //RunLoop退出
+    kCFRunLoopAllActivities = 0x0FFFFFFFU
+};
+```
+
+```
+CFRunLoopRef runLoop = CFRunLoopGetCurrent();
+CFStringRef runLoopMode = kCFRunLoopDefaultMode;
+CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler
+(kCFAllocatorDefault, kCFRunLoopBeforeWaiting, true, 0, ^(CFRunLoopObserverRef observer, CFRunLoopActivity _) {
+    // 在这里处理预加载
+});
+CFRunLoopAddObserver(runLoop, observer, runLoopMode);
+```
+最后调用CFRunLoopRemoveObserver 移除观察者，调用CFRelease 释放观察者。
