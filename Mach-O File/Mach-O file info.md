@@ -23,12 +23,15 @@ __DATA segment 与 __TEXT  的偏移是固定的，仅接着__TEXT 数据之后�
 > * 查看AppKit 的Mach header 信息:	
 otool -h AppKit
 ![](./Screen Shot 2015-07-09 at 2.59.53 PM.png)
+
 > * 查看 AppKit 的load commands信息:	
 otool -l AppKit
 ![](./Screen Shot 2015-07-09 at 3.00.23 PM.png)
+
 > * 查看所有动态加载的库：
 otool -L AppKit
 ![](./Screen Shot 2015-07-09 at 3.01.55 PM.png)
+
 > * 查看Mach-O 文件所有的符号：
 nm -a AppKit
 ![](/Users/vedon/Documents/iOS-tech/Mach-O File/Screen Shot 2015-07-09 at 2.55.01 PM.png)
@@ -38,9 +41,9 @@ nm -a AppKit
 看这些太痛苦了，不如来点objc 的。使用[class-dump](https://github.com/nygard/class-dump),把 class-dump 拉到/usr/local/bin 目录下，这样在terminal 就可以使用了，使用class-dump 可以查看库的头文件。
 
 > * class-dump AppKit
-> ![](/Users/vedon/Documents/iOS-tech/Mach-O File/Screen Shot 2015-07-09 at 3.13.44 PM.png)
+> ![](./Screen Shot 2015-07-09 at 3.13.44 PM.png)
 > 
 
 不看一下汇编代码，都显示不出自己高大上，otool -tV  加Mach-O 文件，可以查看里面的汇编代码。（p.s  小心刷屏）
 
-![](/Users/vedon/Documents/iOS-tech/Mach-O File/Screen Shot 2015-07-09 at 3.21.57 PM.png)
+![](./Screen Shot 2015-07-09 at 3.21.57 PM.png)
