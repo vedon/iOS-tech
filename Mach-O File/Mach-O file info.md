@@ -54,3 +54,23 @@ nm -a AppKit
 ##Mach-O 文件的生成
 关于如何从我们的.m 文件生成一个可执行文件，这里有一篇很好的[博客](http://www.objc.io/issues/6-build-tools/mach-o-executables/),相信你看了之后，受益匪浅呀！
 
+
+参考链接：
+[Mach-O 结构](http://www.cilinder.be/docs/next/NeXTStep/3.3/nd/DevTools/14_MachO/MachO.htmld/index.html)
+
+[Mach-O 资料](https://github.com/bx/machO-tools)
+
+[mach-o 读取symbol](http://ho.ax/tag/mach-o/)
+
+[Fackbook hook](https://github.com/facebook/fishhook)
+
+[Apple OS X ABI Mach-O File Format Reference](https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/MachORuntime/index.html#//apple_ref/doc/uid/20001298-96661)
+
+[Let's Build A Mach-O Executable](https://mikeash.com/pyblog/friday-qa-2012-11-30-lets-build-a-mach-o-executable.html)
+
+[Dynamic Link on OS](https://mikeash.com/pyblog/friday-qa-2012-11-09-dyld-dynamic-linking-on-os-x.html)
+
+[List symbols in shared library](https://github.com/clear-code/list-symbols-in-shared-library/blob/master/list-mach-o-32-public-function-names.c)
+
+[WebCore 文件](http://www.opensource.apple.com/source/WebCore/WebCore-955.66/history/PageCache.cpp?txt)
+
