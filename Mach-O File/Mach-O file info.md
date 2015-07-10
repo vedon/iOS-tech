@@ -3,7 +3,7 @@
 [Mach-O](https://zh.wikipedia.org/wiki/Mach-O)为Mach Object文件格式的缩写，它是一种用于可执行文件，目标代码，动态库，内核转储的文件格式。作为a.out格式的替代，Mach-O提供了更强的扩展性，并提升了符号表中信息的访问速度。
 
 ##Mach-O 文件结构
-[![](./mach_o_segments.gif)](http://www.cilinder.be/docs/next/NeXTStep/3.3/nd/DevTools/14_MachO/MachO.htmld/index.html)
+[![](./Mach-O.png)](http://www.cilinder.be/docs/next/NeXTStep/3.3/nd/DevTools/14_MachO/MachO.htmld/index.html)
 
 
 
