@@ -79,3 +79,28 @@ to the stack.
 > * add指令可以是两个参数,也可以是三个参数.如果指定三个参数,那么第一个参数就被当做目标寄存器,剩下的两个则为源寄存器.因此,这里的指令可以写成这样:add r0, r0, r1。
 
 > * 执行bx指令会回到调用函数的地方.这里的寄存器lr是链接寄存器(link register)，该存储器存储着将要执行的下一条指令
+
+
+```
+__ZN7WebCore9pageCacheEv:
+000000018f756e20 stp x20, x19, [sp, #-32]!
+000000018f756e24 stp fp, lr, [sp, #16]
+000000018f756e28 add fp, sp, #16
+000000018f756e2c adrp x19, 27226 ; 0x18f75d000
+000000018f756e30 add x19, x19, #352
+000000018f756e34 ldrb w8, [x19]
+000000018f756e38 cmp w8, #1
+000000018f756e3c b.ne 0x18f756e48
+000000018f756e40 ldr x0, [x19, #8]
+ 
+关键的代码为：
+000000018f756e2c adrp x19, 27226 ; 0x18f75d000
+000000018f756e30 add x19, x19, #352
+000000018f756e40 ldr x0, [x19, #8]
+
+```
+1. adrp x19, 27226。其中adrp  xd, label， 意味着   xd = (label << 12 + pc)& ~0xfff ， 而运算时 pc 值为当前代码执行地址（例子中为0x18f756e2c)。（其实我也看不懂，我是靠google的 https://www.element14.com/community/servlet/JiveServlet/previewBody/41836-102-1-229511/ARM.Reference_Manual.pdf） 
+2. add      x19, x19, #352。 其中add  xd, xd, #num， 意味着   xd = xd + num
+3. ldr x0, [x19, #8]。 即 x0 = x19 + 8， 而 x0 就是  WebCore::pageCache() 的返回值了。
+
+于是 x0 =  (((27226 << 12) + pc )& ~0xfff) + 352 + 8
