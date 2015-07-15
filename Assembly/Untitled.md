@@ -11,37 +11,7 @@
 000000018f74ec08	ldr	x0, [x19, #8]
 000000018f74ec0c	b	0x18f74ec30
 
---
-
 ```
-> * STP Xt1, Xt2, addr
-Store Pair Registers (extended): stores two doublewords from Xt1 and Xt2 to memory addressed by
-addr.
-
-> * ADRP Xd, label
-Address of Page: sign extends a 21-bit offset, shifts it left by 12 and adds it to the value of the PC with its
-bottom 12 bits cleared, writing the result to register Xd. This computes the base address of the 4KiB
-aligned memory region containing label, and is designed to be used in conjunction with a load, store or
-ADD instruction which supplies the bottom 12 bits of the label’s address. This permits positionindependent
-addressing of any location within ±4GiB of the PC using two instructions, providing that
-dynamic relocation is done with a minimum granularity of 4KiB (i.e. the bottom 12 bits of the label’s
-address are unaffected by the relocation). The term “page” is short-hand for the 4KiB relocation granule,
-and is not necessarily related to the virtual memory page size. 
-
-> * LDRB Wt, addr
-Load Byte: loads a byte from memory addressed by addr, then zero-extends it to Wt. 
-
-> * cmp r0, #0
-beq 1f ; 如果r0==0那么向前跳转到B处执行
-bne 1b ; 否则向后跳转到A处执行
-1:                ；
-1b，1f里的b和f表示backward和forward，1表示局部标签1 
-
-> * LDR Wt, addr
-Load Register: loads a word from memory addressed by addr to Wt. 
-
-> * 一旦遇到一个 B 指令，ARM 处理器将立即跳转到给定的目标地址，从那里继续执行。注意存储在跳转指令中的实际值是相对当前PC 值的一个偏移量，而不是一个绝对地址，它的值由汇编器来计算（参考寻址方式中的相对寻址）。它是 24 位有符号数，左移两位后有符号扩展为 32 位，表示的有效偏移为 26 位(前后32MB 的地址空间)
-> 
 
 ##ARMV7S
 ```
@@ -66,12 +36,30 @@ Load Register: loads a word from memory addressed by addr to Wt.
 2cc79df8	    2200	movs	r2, #0x0
 2cc79dfa	    4479	add	r1, pc
 ```
+> * STP Xt1, Xt2, addr
+Store Pair Registers (extended): stores two doublewords from Xt1 and Xt2 to memory addressed by
+addr.
+
+> * ADRP Xd, label
+符号扩展一个21位的offset, 向左移动12位,PC的值的低12位 清零， 然后  把 这两者相加， 结果写入到Xd寄存器
+
+> * LDRB Wt, addr
+LDRB指令用于从存储器中将一个8位的字节数据传送到目的寄存器中，同时将寄存器的高24位清零
+
+> * cmp r0, #0
+status = ro - 0
+beq 1f ; 如果r0==0那么向前跳转到B处执行
+bne 1b 
+
+> * 一旦遇到一个 B 指令，ARM 处理器将立即跳转到给定的目标地址，从那里继续执行。注意存储在跳转指令中的实际值是相对当前PC 值的一个偏移量，而不是一个绝对地址，它的值由汇编器来计算（参考寻址方式中的相对寻址）。它是 24 位有符号数，左移两位后有符号扩展为 32 位，表示的有效偏移为 26 位(前后32MB 的地址空间)
+> 
 
 > *  PUSH
 Push Multiple Registers stores a subset (or possibly all) of the general-purpose registers R0-R12 and the LR
 to the stack.
 
-> * MOVW可以把一个16-bit常数加载到寄存器中，并用0填充高比特位；另一条指令MOVT可以把一个16-bit常数加载到寄存器高16比特中
+> * MOVW可以把一个16-bit常数加载到寄存器中，并用0填充高比特位；另一条指令MOVT可以把一个16-bit常数加载到寄存器高16比特中。例如：movw	r0, #0xf670 和movt	r0, #0x4bc ,实际上是 r0 = (#0x4bc << 16)|(#0xf670) = 0x4bcf670.
+
 > * str r0, [sp, #8]的作用是：将寄存器r0中的内容存储到栈指针(加8)指向的内存地址.
 
 > * ldr r0, [sp, #8]的作用是“将栈指针加8后指向的地址内容加载到r0寄存器中”。
@@ -80,6 +68,11 @@ to the stack.
 
 > * 执行bx指令会回到调用函数的地方.这里的寄存器lr是链接寄存器(link register)，该存储器存储着将要执行的下一条指令
 
+> * pc 程序计数器
+
+> * LR 链接寄存器
+
+> * SP 堆栈指针
 
 ```
 __ZN7WebCore9pageCacheEv:
@@ -99,8 +92,11 @@ __ZN7WebCore9pageCacheEv:
 000000018f756e40 ldr x0, [x19, #8]
 
 ```
-1. adrp x19, 27226。其中adrp  xd, label， 意味着   xd = (label << 12 + pc)& ~0xfff ， 而运算时 pc 值为当前代码执行地址（例子中为0x18f756e2c)。（其实我也看不懂，我是靠google的 https://www.element14.com/community/servlet/JiveServlet/previewBody/41836-102-1-229511/ARM.Reference_Manual.pdf） 
+1. adrp x19, 27226。其中adrp  xd, label， 意味着   xd = (label << 12 + pc)& ~0xfff ， 而运算时 pc 值为当前代码执行地址（例子中为0x18f756e2c)。 
 2. add      x19, x19, #352。 其中add  xd, xd, #num， 意味着   xd = xd + num
 3. ldr x0, [x19, #8]。 即 x0 = x19 + 8， 而 x0 就是  WebCore::pageCache() 的返回值了。
 
 于是 x0 =  (((27226 << 12) + pc )& ~0xfff) + 352 + 8
+
+参考链接：
+https://www.element14.com/community/servlet/JiveServlet/previewBody/41836-102-1-229511/ARM.Reference_Manual.pdf
