@@ -74,3 +74,4 @@ nm -a AppKit
 
 [WebCore 文件](http://www.opensource.apple.com/source/WebCore/WebCore-955.66/history/PageCache.cpp?txt)
 
+http://networkpx.blogspot.com/2009/05/experiment-alternative-way-to-extract.html
