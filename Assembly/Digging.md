@@ -37,6 +37,40 @@
 3. ldr x0, [x19, #8]。 即 x0 = x19 + 8， 而 x0 就是  WebCore::pageCache() 的返回值了。
 
 于是 x0 =  (((27226 << 12) + pc )& ~0xfff) + 352 + 8
+
+
+**在ARM64实际运行中，得到的汇编代码是**
+
+```
+Address: 195246be8 	 stp       	x20, x19, [sp, #-0x20]!
+Address: 195246bec 	 stp       	x29, x30, [sp, #0x10]
+Address: 195246bf0 	 add       	x29, sp, #0x10
+Address: 195246bf4 	 adrp      	x19, #0x19bca0000
+Address: 195246bf8 	 add       	x19, x19, #0xfa0
+Address: 195246bfc 	 ldrb      	w8, [x19]
+Address: 195246c00 	 cmp       	w8, #1
+
+```
+
+这个时候，我们发现：
+
+在Mach-O 没有加载到内存时候与加载到内存时这，下面这句汇编代码是不一样的，这里需要做一些简单的运算
+
+0x18f74ebf4	 adrp			x19, 27226 ; 0x18f755000
+
+
+0x195246bf4 	 adrp      	x19, #0x19bca0000
+
+
+**(0x195246bf4 + (27226 << 12)) & -4096 = 0x19bca0000 ;**
+
+**(0x19bca0000 - (0x195246bf4 & -4096)) >> 12 = 27226;**
+
+x0 =  ((((0x19bca0000 - (0x195246bf4 & -4096))) + 0x195246bf4)& ~0xfff) + 4000 + 8;
+
+即
+
+x0 =  0x19bca0000 + 4000 + 8;
 ##ARMV7S
 ```
 2cc79dc4	    b590	push	{r4, r7, lr}
@@ -136,7 +170,7 @@ to the stack.
 > * 块拷贝寻址
 > * 相对寻址
 
-http://lli_njupt.0fees.net/ar01s03.html
+[查看更多](http://lli_njupt.0fees.net/ar01s03.html)
 
 
 
