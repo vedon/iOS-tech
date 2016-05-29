@@ -47,7 +47,7 @@
 ![iOS7 logic](./5.png)
 
 **有图有真相！**
-
+ 
 当使用estimatedHeightForRowAtIndexPath 的时候，系统只会调用heightForRowAtIndexPath。
 ![iOS7 logic](./6.png)
 
@@ -86,3 +86,44 @@
 
 结合Cell的数据，生成对应的LayoutAttribute 就可以确定对应的Cell的 高度！简单一句就是：TableView的数据有了，高度也就有了。这里可以异步的计算高度，具体怎么做，你懂的啦！
 
+通过使用estimatedHeightForRowAtIndexPath 和 高度预计算，可以大大提升TableView  的滚动效率！还觉得不够！继续往下看！
+
+##3) 图片加载时机优化
+
+按照用户的操作习惯，当用户快速滑动列表的时候，在没有滚动到目标位置之前，tableView 中的图片是不需要下载的。通过观察ScrollView的回调可以轻松做到这一点。先来看看ScrollView的一些回调和特性。
+
+![iOS7 logic](./12.png)
+
+按照一般的操作习惯，回调函数时序会有三种：
+>1) 用户滑动列表一次
+>![iOS7 logic](./13.png)
+>
+>2）用户两次次滑动列表
+>![iOS7 logic](./14.png)
+>
+>2）用户两次滑动列表，第二次停止加速滑动（就是用手指把scrollView 停住）
+>![iOS7 logic](./15.png)
+>
+
+通过观察第二和第三种情况，发现新的 dragging 如果有加速度，那么 willBeginDecelerating 会再一次被调用，然后才是 didEndDecelerating；如果没有加速度，虽然 willBeginDecelerating 不会被调用，但前一次留下的 didEndDecelerating 会被调用，所以连续快速滚动一个 scroll view 时，delegate 方法被调用的顺序就是2和3 两种情况交替出现。
+
+**刚开始拖动的时候，dragging 为 YES，decelerating 为 NO；decelerate 过程中，dragging 和 decelerating 都为 YES；decelerate 未结束时开始下一次拖动，dragging 和 decelerating 依然都为 YES。所以无法简单通过 table view 的 dragging 和 decelerating 判断是在用户拖动还是减速过程。**
+
+**通过添加一个变量如 userDragging，在 willBeginDragging 中设为 YES，didEndDragging 中设为 NO。加载图片的时机可以是userDragging 为YES 和 tableView的decelerating 属性为YES.**
+
+遇到一些大图下载的需求，可以通过这种方法来提升TableView 的性能。
+
+![iOS7 logic](./16.png)
+
+##4) 数据内存优化
+
+仿效于CoreData 属性，当一些没有用到的数据，不需要加载到内存。这里可以使用数据虚拟化，简单来说就是。
+![iOS7 logic](./17.png)
+
+在内存中，不全是真的数据类型，item placeholder是一个自定义的数据类型，item 是真实的数据类型。展示的数据就相当于一个窗口，会上下浮动。不再窗口内的数据，可以直接释放掉，节省内存，在窗口内的数据则从本地DB 中读取。
+
+**在这里聪明的你，应该会想到：提前异步加载窗口内的数据，当cell 要使用的时候，直接可以在内存获取。**这里可以结合ScrollView 的特性实现数据预加载。
+
+![iOS7 logic](./18.png)
+
+targetContentOffset 是tableView 减速到停止的地方。通过判断当前数据的位置，可以实现数据预加载！
