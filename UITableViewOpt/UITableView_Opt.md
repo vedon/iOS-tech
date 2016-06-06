@@ -42,6 +42,7 @@
 
 解决的办法是：**Cache it !** 别忘了，横屏和竖屏的高度是不一样的，要分开缓存！不然，测试兄弟又提Bugs 了。
 
+***插个tip:不要cellForRowAtIndexPath:方法中绑定数据，因为在此时cell还没有显示。可以使用UITableView的delegate中的tableView:willDisplayCell:forRowAtIndexPath:方法。***
 
 ####heightForRowAtIndexPath 调用次数，在iOS 7 也受estimatedHeightForRowAtIndexPath 函数的影响。
 ![iOS7 logic](./5.png)
@@ -130,3 +131,34 @@
 ![iOS7 logic](./18.png)
 
 targetContentOffset 是tableView 减速到停止的地方。通过判断当前数据的位置，可以实现数据预加载！
+
+##5) 对CPU 和 GPU 都应该公平点！
+优化UITableView 的流畅性，不单单是time profile 看手机CPU 的利用率就可以的。别忘了，它还有个兄弟：GPU。什么情况下会触发GPU，让它工作呢？先来看看两者的主要工作。
+
+###CPU
+> * 对象的创建与销毁
+> * 布局计算（frame,bound ,etc）
+> * 文本计算 （[NSAttributedString boundingRectWithSize:options:context:] 计算文字高度）
+> * 文本渲染 （UITextView ,UILabel, CoreText）
+> * 图片的解码 (这个不用说啦，大家都懂)
+> * 图像的绘制 (DrawRect)
+
+
+###GPU
+> * 纹理的渲染  （所有的 Bitmap，包括图片、文本、栅格化的内容，最终都要由内存提交到显存，绑定为 GPU Texture）
+> * 视图的混合 （多层次的view 或者layer 叠加）
+> * 图形的生成（圆角、阴影、遮罩。最典型的图片圆角问题！）
+
+针对自媒体人卡片的情况，我们来分析一下。卡片类型中有一种比较复杂的情况是这样的。
+![iOS7 logic](./19.png)
+ 
+ 在这里可以看出一个严重的问题：会存在多层View的叠加。看看上面提到的，多层view 的叠加，如果处理不好，处了会增加CPU 的负担。还会增加GPU 的负担！Holy shit,目前项目中还没有处理这种情况。
+ 
+通过Instrument观察到，CPU 的利用率不高，但是GPU的利用率就飙升！ 我们要对CPU 和 GPU 公平一点，把一些可以分担给CPU 的工作都分出去。
+处理方法：把叠加的Views ,绘制成一张图片！利用CPU 来绘制图像。
+
+这里有个关键点：你需要清楚地知道哪部分渲染需要使用GPU，哪部分可以使用CPU，以此保持平衡。
+
+
+##6)关于像素的问题
+http://www.jianshu.com/p/8414b96549e3
