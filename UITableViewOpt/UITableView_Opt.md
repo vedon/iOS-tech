@@ -161,4 +161,60 @@ targetContentOffset 是tableView 减速到停止的地方。通过判断当前�
 
 
 ##6)关于像素的问题
-http://www.jianshu.com/p/8414b96549e3
+之前同事国星发现了一个UILabel 的问题，当UILabel的坐标存在很小的小数时，Label 的字体会模糊。例如：CGRectMake(21.0023, 60, 200, 50)，这样就会出现字体模糊。
+
+深挖一下， 其实就是iOS 的sub pixel anti aliasing. AKA ,像素的抗锯齿。什么情况下会出现这种不必要的子像素抗锯齿操作呢？最常发生的情况是通过代码计算而变成浮点值的视图坐标，已经踩过坑！或者是一些不正确的图片资源，这些图片的大小不是对齐到屏幕的物理像素上的（例如，你有一张在Retina显示屏上的大小为60*61的图片，而不是60*60的）。
+
+像素模糊问题，靠人眼是很难看出区别的。不是每个人都像我一样，有像素眼。这个时候，可以用Instruments 来检测。非常简单，只需要在Core Animation里面开启Color misaligned Images就可以了。
+
+![iOS7 logic](./21.png)
+
+##然后我们看个例子：
+
+
+![iOS7 logic](./20.png)
+
+黄色部分就是图片没有对齐的问题，品红色就是像素没对齐。
+图片中的设备是iPhone 5c ,坐标为21和21.5 没有像素对齐的问题，因为0.5 就是一个像素嘛。当座位改为21.2，这个时候就悲剧了，屏幕为了可以显示这个坐标的字体，就发生了sub pixel antialiased. 严重的，就会出现字体模糊的问题。
+
+再来看看下面的图片，第一张图片的大小是200 ＊ 200 pixels ，也就是程序里面的CGSizeMake(100, 100)。图片的大小刚好可以对齐imageView的大小。另外一张图，90 ＊ 90 pixels ,也就是程序里面的CGSizeMake(45, 45).当imageView 设为CGSizeMake(90, 90)，就会有图片对齐的问题。
+
+以上两种问题都会消耗GPU！影响帧率！
+
+以上两种问题都会消耗GPU！影响帧率！
+
+以上两种问题都会消耗GPU！影响帧率！
+
+###解决的办法
+像素对齐的问题，只需要简单的使用ceilf, floorf和CGRectIntegral方法来对坐标做四舍五入处理。
+
+图片对齐的问题，就需要重绘图片了。
+
+```objc
+- (UIImage *)cropEqualScaleImageToSize:(CGSize)size {
+    CGFloat scale =  [UIScreen mainScreen].scale;
+  
+  UIGraphicsBeginImageContextWithOptions(size, NO, scale);
+  
+  CGSize aspectFitSize = CGSizeZero;
+  if (self.size.width != 0 && self.size.height != 0) {
+    CGFloat rateWidth = size.width / self.size.width;
+    CGFloat rateHeight = size.height / self.size.height;
+    
+    CGFloat rate = MIN(rateHeight, rateWidth);
+    aspectFitSize = CGSizeMake(self.size.width * rate, self.size.height * rate);
+  }
+  
+  [self drawInRect:CGRectMake(0, 0, aspectFitSize.width, aspectFitSize.height)];
+  UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+  UIGraphicsEndImageContext();
+  
+  return image;
+}
+```
+
+关于字体的相关链接：
+
+[字体渲染背后不得不说的故事](http://www.jianshu.com/p/8414b96549e3)
+
+[Sub pixels antialiased](https://bjango.com/articles/subpixeltext/)
