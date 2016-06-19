@@ -29,9 +29,37 @@ CPU 总的利用率太高了。NSAttributeString  在CPU 上进行渲染了。�
 
 #->Google it
 
+对于文字和图片的渲染，用得最多的就是UIImageView 和 UILabel ，替换的方案可以用CALayer 和CATextlayer.
+
+好处：
+
+> * 快到没朋友
+> * 图片和文字的渲染可以在16ms 内完成。
+> 
+
+缺点：
+
+> * 一些复杂的自定义的文字很难配置
+> * 使用起来比较啰嗦，需要配置很多属性。
+> 
+
+QuartzCore 配合CoreText 可以满足大部分需求了，至少我的已经满足了。LOL,下面列出最常用到的几个类。
+
+###QuartzCore
+> * CALayer
+> * CATextLayer
+> * CAGradientLayer (设计最喜欢说，这里加个蒙板吧，要渐变的哦，ps, 你知道会影响效率吗，你用Instrument 的Core animation看看？).
+
+###CoreText
+> * NSAttributeString 
+> * NSMutableAttributeString
+
+
+有了他们，UI 的需求应该能满足了。说了这么久，来看一下他们的对比吧。👇
 
 ![](./6.png)
 
+从图里面可以看到，UILabel 搭配 NSAttributeString ,在我的使用场景下，它们不应该在一起。勉强没幸福。CATextLayer 和NSAttributeString 更搭！在快速滚动下，帧率还可以保持在58 帧左右。实在是屌！
 
 
 
