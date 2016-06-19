@@ -27,5 +27,12 @@ Demo 中的代码主要差别就是这几行代码。
 
 CPU 总的利用率太高了。NSAttributeString  在CPU 上进行渲染了。把整个CPU 的利用率提上去了，因此影响了滚动的帧率。定位到问题了，那么解决办法是？
 
-#自己画吧
+#->Google it
 
+
+![](./6.png)
+
+
+
+
+[CATextLayer 使用方法](https://zsisme.gitbooks.io/ios-/content/chapter6/CATextLayer.html)
