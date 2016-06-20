@@ -61,7 +61,7 @@ QuartzCore 配合CoreText 可以满足大部分需求了，至少我的已经满
 
 从图里面可以看到，UILabel 搭配 NSAttributeString ,在我的使用场景下，它们不应该在一起。勉强没幸福。CATextLayer 和NSAttributeString 更搭！在快速滚动下，帧率还可以保持在58 帧左右。实在是屌！
 
-可以通过简单的改一下UILabel 的layer 的类（重写类方法 layerClass），以利用CATextLayer 的高性能绘制。
+可以通过简单的改一下UILabel 的layer 的类（重写类方法 layerClass,UILabel 默认的layers是_UILabelLayer，它是CALayer的子类），以利用CATextLayer 的高性能绘制。
 
 ```
 - (id)initWithFrame:(CGRect)frame
@@ -84,7 +84,6 @@ QuartzCore 配合CoreText 可以满足大部分需求了，至少我的已经满
 
 - (void)setUp
 {
-
     [self textLayer].alignmentMode = kCAAlignmentJustified;
     [self textLayer].wrapped = YES;
     [self.layer display];
