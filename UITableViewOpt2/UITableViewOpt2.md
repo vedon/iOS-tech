@@ -61,8 +61,70 @@ QuartzCore 配合CoreText 可以满足大部分需求了，至少我的已经满
 
 从图里面可以看到，UILabel 搭配 NSAttributeString ,在我的使用场景下，它们不应该在一起。勉强没幸福。CATextLayer 和NSAttributeString 更搭！在快速滚动下，帧率还可以保持在58 帧左右。实在是屌！
 
+可以通过简单的改一下UILabel 的layer 的类（重写类方法 layerClass），以利用CATextLayer 的高性能绘制。
 
-[CATextLayer 使用方法](https://zsisme.gitbooks.io/ios-/content/chapter6/CATextLayer.html)
+```
+- (id)initWithFrame:(CGRect)frame
+{
+    if (self = [super initWithFrame:frame]) {
+        [self setUp];
+    }
+    return self;
+}
+
++ (Class)layerClass
+{
+    return [CATextLayer class];
+}
+
+- (CATextLayer *)textLayer
+{
+    return (CATextLayer *)self.layer;
+}
+
+- (void)setUp
+{
+
+    [self textLayer].alignmentMode = kCAAlignmentJustified;
+    [self textLayer].wrapped = YES;
+    [self.layer display];
+}
+
+- (void)setText:(NSString *)text
+{
+    super.text = text;
+    [self textLayer].string = text;
+}
+
+- (void)setAttributedText:(NSAttributedString *)attributedText
+{
+    super.attributedText = attributedText;
+    [self textLayer].string = attributedText;
+}
+
+- (void)setTextColor:(UIColor *)textColor
+{
+    super.textColor = textColor;
+    [self textLayer].foregroundColor = textColor.CGColor;
+}
+
+- (void)setFont:(UIFont *)font
+{
+    super.font = font;
+    CFStringRef fontName = (__bridge CFStringRef)font.fontName;
+    CGFontRef fontRef = CGFontCreateWithFontName(fontName);
+    [self textLayer].font = fontRef;
+    [self textLayer].fontSize = font.pointSize;
+    
+    CGFontRelease(fontRef);
+}
+```
+
+使用CATextLayer 的UILabel 和纯CATextLayer 的效率对比如下：
+![](./9.png)
+
+可以看到纯CATextLayer 的渲染是比CATextLayer 的UILabel快的。
+
 
 
 ##2)使用 Dispatch_once  为那些经常要创建的对象服务。
