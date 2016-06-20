@@ -62,5 +62,32 @@ QuartzCore 配合CoreText 可以满足大部分需求了，至少我的已经满
 从图里面可以看到，UILabel 搭配 NSAttributeString ,在我的使用场景下，它们不应该在一起。勉强没幸福。CATextLayer 和NSAttributeString 更搭！在快速滚动下，帧率还可以保持在58 帧左右。实在是屌！
 
 
-
 [CATextLayer 使用方法](https://zsisme.gitbooks.io/ios-/content/chapter6/CATextLayer.html)
+
+
+##2)使用 Dispatch_once  为那些经常要创建的对象服务。
+
+> * UIFont ,Screen scale , UIColor ,NSMutableParagraphStyle.etc .尽量使用dispatch_once 来初始化，然后保存起来重复使用。YYAsyncLayer  就是这么干的。
+> ![](./7.png)
+> * 使用strptime 而不是 NSDateFomatter 。为什么！因为它快呀
+
+```
+//#include <time.h>
+
+time_t t;
+struct tm tm;
+strptime([iso8601String cStringUsingEncoding:NSUTF8StringEncoding], "%Y-%m-%dT%H:%M:%S%z", &tm);
+tm.tm_isdst = -1;
+t = mktime(&tm);
+[NSDate dateWithTimeIntervalSince1970:t + [[NSTimeZone localTimeZone] secondsFromGMT]];
+```
+> * 使用NSDictionary 里面的Key ，一般用［NSString stringWithFormat ...］。大多数情况下是没有效率的问题的，但是如果用在循环里面，那就会有效率的问题。使用test2 的方法，效率基本上是stringWithFormat 的3倍。
+> ![](./8.png)
+
+
+
+
+
+
+
+
