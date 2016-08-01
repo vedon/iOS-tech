@@ -1,10 +1,103 @@
 ##RunLoopRun 源码解析
 
-一开始，先看一下图吧，别太紧张。[源码地址](https://github.com/vedon/CF/blob/master/CFRunLoop.c)
+了解一下runloop ,对于实际的开发上是大有裨益的。[源码](https://github.com/vedon/CF/blob/master/CFRunLoop.c)在github 上都有，大家可以自行查阅。
 
+Runloop 的主要工作流程，简单来说就是下图。
 ![](./Screen Shot 2015-09-22 at 11.28.41 PM.png)
 
-好啦，紧接着下面源码对应的就是这个图的逻辑。
+在断点的堆栈里面看得最多的就是下面函数的了，它们是什么？
+
+
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__();
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_BLOCK__();
+static void __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__();
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_TIMER_CALLBACK_FUNCTION__();
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__();
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE1_PERFORM_FUNCTION__();
+
+```
+
+***
+
+####首先看第一个函数,它让外部观察Runloop 的运行状态成为可能，[你可以注册一个observer ，通过它观察runloop 的行为](#jump)。
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__(
+    CFRunLoopObserverCallBack func,
+    CFRunLoopObserverRef observer,
+    CFRunLoopActivity activity,
+    void *info);
+
+```
+
+CoreAnimation就有这么一个观察者，下面的堆栈是从Instruments 里面看到的。当一个UIView 的DrawRect被调用时，在网上查了一下相关的资料，可以确定的是这个UIView 就被标记为待处理，并被提交到一个全局的容器去。当Oberver监听的事件到来时，回调执行函数中会遍历所有待处理的UIView/CAlayer 以执行实际的绘制和调整，并更新 UI 界面。
+
+```
+CA::Transaction::observer_callback(__CFRunLoopObserver*, unsigned long, void*) ()
+CA::Transaction::commit() ()
+CA::Context::commit_transaction(CA::Transaction*) ()
+CA::Layer::layout_and_display_if_needed();
+CA::Layer::layout_if_needed();
+[CALayer layoutSublayers];
+[UIView layoutSubviews];
+CA::Layer::display_if_needed();
+[CALayer display];
+[UIView drawRect];
+```
+
+***
+
+####CFRunLoopPerformBlock()  就是我们平时说的，hey,麻烦在下一个runloop 执行block,thx.
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_BLOCK__(
+        void (^block)(void));
+
+```
+
+***
+
+####GCD中dispatch到main queue的block会被dispatch到main loop执行。GCD  会创建多个没有runloop的线程，当任务执行完的时候，把上下文切换到主线程，继续执行？（FixMe）
+
+```
+static void __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__(
+    void *msg); 
+```
+***
+
+####NSObject PerformSelector:AfterDelay: ,NSTimer 会通过这个函数回调。
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_TIMER_CALLBACK_FUNCTION__(
+    CFRunLoopTimerCallBack func,
+    CFRunLoopTimerRef timer,
+    void *info);
+```
+
+***
+
+####Source0
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__(
+    void (*perform)(void *),
+    void *info);
+```
+
+***
+####Source1
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE1_PERFORM_FUNCTION__(
+    void *(*perform)(void *msg, CFIndex size, CFAllocatorRef allocator, void *info),
+    mach_msg_header_t *msg, CFIndex size, mach_msg_header_t **reply,
+    void (*perform)(void *),
+    void *info);
+```
+
+下面源码对应的就是这个图的逻辑。
 
 ```
 static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInterval seconds, Boolean stopAfterHandle, CFRunLoopModeRef previousMode) {
@@ -183,6 +276,9 @@ __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__
 当调用 dispatch_async(dispatch_get_main_queue(), block) 时，libDispatch 会向主线程的 RunLoop 发送消息，RunLoop会被唤醒，并从消息中取得这个 block，并在回调 __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__() 里执行这个 block。但这个逻辑仅限于 dispatch 到主线程，dispatch 到其他线程仍然是由 libDispatch 处理的。
 
 从这里可以看到，每一次执行完工作后，主线程都会进入休眠，等待唤醒。这个时候，可以把一些必须要在主线程执行的，而又不需要马上显示出来的工作在这个时候触发。这个时机，可以通过runloop 的observer 来实现。
+
+
+<span id="jump">创建观察者</span>
 
 ```
 - (void)createRunLoopObserverWithObserverType:(CFOptionFlags)flag
