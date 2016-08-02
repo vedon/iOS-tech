@@ -1,10 +1,334 @@
 ##RunLoopRun 源码解析
 
-一开始，先看一下图吧，别太紧张。[源码地址](https://github.com/vedon/CF/blob/master/CFRunLoop.c)
+了解一下runloop ,对于实际的开发上是大有裨益的。[源码](https://github.com/vedon/CF/blob/master/CFRunLoop.c)在github 上都有，大家可以自行查阅。
 
+Runloop 的主要工作流程，简单来说就是下图。
 ![](./Screen Shot 2015-09-22 at 11.28.41 PM.png)
 
-好啦，紧接着下面源码对应的就是这个图的逻辑。
+从日常开发里面，断点的堆栈里面看得最多的就是下面函数的了，它们是什么？
+
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__();
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_BLOCK__();
+static void __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__();
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_TIMER_CALLBACK_FUNCTION__();
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__();
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE1_PERFORM_FUNCTION__();
+
+```
+
+***
+
+####首先看第一个函数,它让外部观察Runloop 的运行状态成为可能，你可以注册一个observer ，通过它观察runloop 的行为。
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__(
+    CFRunLoopObserverCallBack func,
+    CFRunLoopObserverRef observer,
+    CFRunLoopActivity activity,
+    void *info);
+
+```
+
+CoreAnimation就有这么一个观察者，下面的堆栈是从Instruments 里面看到的。当一个UIView 的DrawRect被调用时，这个UIView 就被标记为待处理，并被提交到一个全局的容器去。当Oberver监听的事件到来时，回调执行函数中会遍历所有待处理的UIView/CAlayer 以执行实际的绘制和调整，并更新 UI 界面。可以打一个符号断点
+
+```
+layout_and_display_if_needed
+```
+就可以看到整个完整的堆栈信息了。
+
+
+![](./1.png)
+
+```
+CA::Transaction::observer_callback(__CFRunLoopObserver*, unsigned long, void*) ()
+CA::Transaction::commit() ()
+CA::Context::commit_transaction(CA::Transaction*) ()
+CA::Layer::layout_and_display_if_needed();
+CA::Layer::layout_if_needed();
+	[CALayer layoutSublayers];
+	[UIView layoutSubviews];
+CA::Layer::display_if_needed();
+	[CALayer display];
+	[UIView drawRect];
+```
+
+看到这样的堆栈，大家会想到什么呢？哎哟，是不是所有与UI相关的更新都会经过CA::Layer XXXXX ，这样的话，在Debug 模式下 hook 住其中一个函数，然后做一些判断UI 是否在主线程的判断。这样至少在开发过程中能发现一些问题。（Am i right ? FixMe）
+
+除此之外，autoreleasePool 也是通过观察者的方式来实现的。
+
+```
+1,即将进入runloop 的时候，push 一个pool，此时观察者的优先级是最高的，保证在其他回调前创建好pool.
+
+2,准备进入睡眠的时候 pop 一个pool。此时观察者的优先级是最低的，保证在所有回调结束之后执行。
+
+```
+
+**ps: 可以下载源码编译一下，打断点，你会有求知若渴的感觉！**
+
+***
+
+####CFRunLoopPerformBlock() 添加一个block  到指定runloop中。
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_BLOCK__(
+        void (^block)(void));
+
+```
+
+***
+
+####GCD中dispatch到main queue的block会被dispatch到main loop执行。GCD  会创建多个没有runloop的线程，当任务执行完的时候，把上下文切换到主线程，继续执行？（FixMe）
+
+```
+static void __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__(
+    void *msg); 
+```
+***
+
+####NSObject PerformSelector:AfterDelay: ,NSTimer 会通过这个函数回调。
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_TIMER_CALLBACK_FUNCTION__(
+    CFRunLoopTimerCallBack func,
+    CFRunLoopTimerRef timer,
+    void *info);
+```
+
+***
+
+####Source0 处理App 内部事件，e.g. 以下的方法就回创建一个Source 0 事件。
+
+```
+- (void)performSelector:(SEL)aSelector
+               onThread:(NSThread *)thr
+             withObject:(id)arg
+          waitUntilDone:(BOOL)wait
+                  modes:(NSArray *)array;
+``` 
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__(
+    void (*perform)(void *),
+    void *info);
+```
+
+***
+####Source1 处理内核事件。 e.g. NSMach port（通过内核和其他线程通信，接收、分发系统事件）
+
+```
+static void __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE1_PERFORM_FUNCTION__(
+    void *(*perform)(void *msg, CFIndex size, CFAllocatorRef allocator, void *info),
+    mach_msg_header_t *msg, CFIndex size, mach_msg_header_t **reply,
+    void (*perform)(void *),
+    void *info);
+```
+
+
+除了__CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__ 观察者回调函数外，其他5 个函数，我们来看一下它们的执行顺序。？[直接看结果](#result)
+
+```
+//
+//  ViewController.m
+//  RunLoopAction
+//
+//  Created by vedon on 2/8/2016.
+//  Copyright © 2016 vedon. All rights reserved.
+//
+
+#import "ViewController.h"
+
+@interface ViewController ()
+
+@end
+
+@implementation ViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    
+    /**
+     *  Observer
+     */
+    [self createRunLoopObserverWithObserverType:kCFRunLoopEntry];
+    [self createRunLoopObserverWithObserverType:kCFRunLoopBeforeTimers];
+    [self createRunLoopObserverWithObserverType:kCFRunLoopBeforeSources];
+    [self createRunLoopObserverWithObserverType:kCFRunLoopBeforeWaiting];
+    [self createRunLoopObserverWithObserverType:kCFRunLoopAfterWaiting];
+    
+    
+    /**
+     *  Runloop block
+     *
+     */
+    CFRunLoopRef mainRunloop = CFRunLoopGetMain();
+    CFRunLoopPerformBlock(mainRunloop, kCFRunLoopCommonModes, ^{
+        
+        NSLog(@"__CFRUNLOOP_IS_CALLING_OUT_TO_A_BLOCK__  CFRunLoopPerformBlock");
+        
+    });
+    
+    /**
+     *  Source 0 event
+     *
+     */
+    [self performSelector:@selector(source0Event) onThread:[NSThread mainThread] withObject:nil waitUntilDone:NO];
+    
+    
+    /**
+     *  Source 1 event
+     */
+    [self addButtonToMainView];
+    
+    
+    
+    //Exec order : FIFO
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSLog(@"__CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__  GCD dispatch_after");
+    });
+    
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSLog(@"__CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__  GCD dispatch_async");
+    });
+    
+    
+    /**
+     *  Timer
+     */
+    [NSTimer scheduledTimerWithTimeInterval:0 target:self selector:@selector(timerAction) userInfo:nil repeats:NO];
+    
+    
+    /**
+     *  Dispatch_once will be executed before the runloop run
+     */
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSLog(@"dispatch_once");
+    });
+    // Do any additional setup after loading the view, typically from a nib.
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+- (void)source0Event
+{
+    NSLog(@"__CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__  Source0");
+}
+
+- (void)timerAction
+{
+    NSLog(@"__CFRUNLOOP_IS_CALLING_OUT_TO_A_TIMER_CALLBACK_FUNCTION__  NSTimer");
+}
+
+- (void)addButtonToMainView
+{
+    UIButton *button = [[UIButton alloc] initWithFrame:CGRectMake(0, 0, 80, 50)];
+    [button addTarget:self action:@selector(source1Event) forControlEvents:UIControlEventTouchUpInside];
+    button.backgroundColor = [UIColor lightGrayColor];
+    
+    [self.view addSubview:button];
+    
+}
+
+- (void)source1Event
+{
+    NSLog(@"__CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE1_PERFORM_FUNCTION__  Source1");
+}
+
+
+- (void)createRunLoopObserverWithObserverType:(CFOptionFlags)flag
+{
+    CFRunLoopRef runLoop = CFRunLoopGetCurrent();
+    CFStringRef runLoopMode = kCFRunLoopDefaultMode;
+    CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler
+    (kCFAllocatorDefault, flag, true, 0, ^(CFRunLoopObserverRef observer, CFRunLoopActivity _activity) {
+        
+        switch (_activity) {
+            case kCFRunLoopEntry:
+            {
+                NSLog(@"即将进入Loop");
+            }
+                break;
+            case kCFRunLoopBeforeTimers:
+            {
+                NSLog(@"即将处理 Timer");
+                break;
+            }
+            case kCFRunLoopBeforeSources:
+                NSLog(@"即将处理 Source");
+                break;
+            case kCFRunLoopBeforeWaiting:
+                NSLog(@"即将进入休眠");
+                ;
+                break;
+            case kCFRunLoopAfterWaiting:
+                NSLog(@"刚从休眠中唤醒");
+                break;
+            case kCFRunLoopExit:
+                NSLog(@"即将退出Loop");
+                break;
+            default:
+                break;
+        }
+    });
+    CFRunLoopAddObserver(runLoop, observer, runLoopMode);
+}
+
+@end
+
+```
+
+<span id="result">运行结果</span>
+
+```
+2016-08-02 16:36:21.129 RunLoopAction[4232:342167] dispatch_once
+2016-08-02 16:36:21.140 RunLoopAction[4232:342167] 即将进入Loop
+2016-08-02 16:36:21.141 RunLoopAction[4232:342167] 即将处理 Timer
+2016-08-02 16:36:21.141 RunLoopAction[4232:342167] 即将处理 Source
+2016-08-02 16:36:21.142 RunLoopAction[4232:342167] __CFRUNLOOP_IS_CALLING_OUT_TO_A_BLOCK__  CFRunLoopPerformBlock
+2016-08-02 16:36:21.142 RunLoopAction[4232:342167] __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__  Source0
+2016-08-02 16:36:21.143 RunLoopAction[4232:342167] __CFRUNLOOP_IS_CALLING_OUT_TO_A_TIMER_CALLBACK_FUNCTION__  NSTimer
+2016-08-02 16:36:21.143 RunLoopAction[4232:342167] 即将处理 Timer
+2016-08-02 16:36:21.144 RunLoopAction[4232:342167] 即将处理 Source
+2016-08-02 16:36:21.144 RunLoopAction[4232:342167] __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__  GCD dispatch_after
+2016-08-02 16:36:21.145 RunLoopAction[4232:342167] __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__  GCD dispatch_async
+2016-08-02 16:36:21.146 RunLoopAction[4232:342167] 即将处理 Timer
+2016-08-02 16:36:21.146 RunLoopAction[4232:342167] 即将处理 Source
+2016-08-02 16:36:21.147 RunLoopAction[4232:342167] 即将处理 Timer
+2016-08-02 16:36:21.147 RunLoopAction[4232:342167] 即将处理 Source
+2016-08-02 16:36:21.148 RunLoopAction[4232:342167] 即将处理 Timer
+2016-08-02 16:36:21.148 RunLoopAction[4232:342167] 即将处理 Source
+2016-08-02 16:36:21.148 RunLoopAction[4232:342167] 即将处理 Timer
+2016-08-02 16:36:21.149 RunLoopAction[4232:342167] 即将处理 Source
+2016-08-02 16:36:21.149 RunLoopAction[4232:342167] 即将进入休眠
+```
+
+从运行log 可以看出，dispatch_once 在runloop 还没有进入的时候已经执行了。接着执行的顺序就是：
+
+```
+__CFRUNLOOP_IS_CALLING_OUT_TO_A_BLOCK__
+__CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__
+__CFRUNLOOP_IS_CALLING_OUT_TO_A_TIMER_CALLBACK_FUNCTION__
+
+
+__CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__
+```
+执行顺序和源码表述的一样。
+
+```
+__CFRunLoopDoBlocks
+__CFRunLoopDoSources0
+__CFRunLoopDoTimers
+
+
+__CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__
+```
+
 
 ```
 static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInterval seconds, Boolean stopAfterHandle, CFRunLoopModeRef previousMode) {
@@ -138,7 +462,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 ```
 
  
-##源码太枯燥无味了，直接说原理。
+##Example
 
 简单从一个点击时间开始分析。
 
@@ -181,51 +505,3 @@ __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__
 ```
 
 当调用 dispatch_async(dispatch_get_main_queue(), block) 时，libDispatch 会向主线程的 RunLoop 发送消息，RunLoop会被唤醒，并从消息中取得这个 block，并在回调 __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__() 里执行这个 block。但这个逻辑仅限于 dispatch 到主线程，dispatch 到其他线程仍然是由 libDispatch 处理的。
-
-从这里可以看到，每一次执行完工作后，主线程都会进入休眠，等待唤醒。这个时候，可以把一些必须要在主线程执行的，而又不需要马上显示出来的工作在这个时候触发。这个时机，可以通过runloop 的observer 来实现。
-
-```
-- (void)createRunLoopObserverWithObserverType:(CFOptionFlags)flag
-{
-    CFRunLoopRef runLoop = CFRunLoopGetCurrent();
-    CFStringRef runLoopMode = kCFRunLoopDefaultMode;
-    CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler
-    (kCFAllocatorDefault, flag, true, 0, ^(CFRunLoopObserverRef observer, CFRunLoopActivity _activity) {
-        
-        switch (_activity) {
-            case kCFRunLoopEntry:
-            {
-                NSLog(@"即将进入Loop");
-            }
-                break;
-            case kCFRunLoopBeforeTimers:
-                NSLog(@"即将处理 Timer");
-                break;
-            case kCFRunLoopBeforeSources:
-                NSLog(@"即将处理 Source");
-                break;
-            case kCFRunLoopBeforeWaiting:
-                NSLog(@"即将进入休眠");
-                ;
-                break;
-            case kCFRunLoopAfterWaiting:
-                NSLog(@"刚从休眠中唤醒");
-                break;
-            case kCFRunLoopExit:
-                NSLog(@"即将退出Loop");
-                break;
-            default:
-                break;
-        }
-    });
-    CFRunLoopAddObserver(runLoop, observer, runLoopMode);
-}
-```
-
-flag 传入kCFRunLoopBeforeWaiting。执行操作的时候使用
-
-```
-[self performSelector:@selector(performAction) onThread:[NSThread mainThread] withObject:nil waitUntilDone:NO modes:@[NSDefaultRunLoopMode]];
-```
-
-传入一个source 0 事件到当前runloop ，把它唤醒。设置NSDefaultRunLoopMode ，让用户在操作tableView 的时候，runloop 切换到 UITrackingMode ，暂停传入的source 0 事件。这样，至少可以提升一下用户体验。
