@@ -31,12 +31,24 @@ static void __CFRUNLOOP_IS_CALLING_OUT_TO_AN_OBSERVER_CALLBACK_FUNCTION__(
 
 ```
 
-CoreAnimation就有这么一个观察者，下面的堆栈是从Instruments 里面看到的。当一个UIView 的DrawRect被调用时，这个UIView 就被标记为待处理，并被提交到一个全局的容器去。当Oberver监听的事件到来时，回调执行函数中会遍历所有待处理的UIView/CAlayer 以执行实际的绘制和调整，并更新 UI 界面。可以打一个符号断点
+CoreAnimation就有这么一个观察者，下面的堆栈是从Instruments 里面看到的。当一个UIView 的DrawRect被调用时，这个UIView 就被标记为待处理，并被提交到一个全局的容器去。当Oberver监听的事件到来时，回调执行函数中会遍历所有待处理的UIView/CAlayer 以执行实际的绘制和调整，并更新 UI 界面。可以打一个符号断点，就可以看到整个完整的堆栈信息了。
 
 ```
 layout_and_display_if_needed
 ```
-就可以看到整个完整的堆栈信息了。
+####这里插一个题外话：CoreAnimation 不是只负责动画吗？
+
+Core animation 除了负责动画的创建和执行，还有绘制功能。它是QuzrtzCore 的一部分。QuartzCore 是什么？
+
+QuartzCore (与openGl 交互) 负责图形处理和视频图像处理的能力。除此之外，CoreGraphic 也是基于它的绘制引擎实现的。实际上，真正负责绘制的都是QuartzCore。一般我们重写的DrawRect 方法，是创建了数据模型（位图数据），QuzrtzCore 把数据模型显示到屏幕上。
+
+[Core Graphic & Core Animation](http://stackoverflow.com/questions/9248530/confusion-regarding-quartz2d-core-graphics-core-animation-core-images)
+
+[Core Graphics Framework Reference](https://developer.apple.com/library/ios/documentation/CoreGraphics/Reference/CoreGraphics_Framework/index.html)
+
+[Core Animation Reference](https://developer.apple.com/library/ios/documentation/Cocoa/Reference/CoreAnimation_framework/)
+
+[Quartz Core Framework Reference](https://developer.apple.com/library/mac/documentation/GraphicsImaging/Reference/QuartzCoreRefCollection/)
 
 
 ![](./1.png)
@@ -47,14 +59,17 @@ CA::Transaction::commit() ()
 CA::Context::commit_transaction(CA::Transaction*) ()
 CA::Layer::layout_and_display_if_needed();
 CA::Layer::layout_if_needed();
-	[CALayer layoutSublayers];
-	[UIView layoutSubviews];
+	
+	这里会触发UIView 的layoutSubViews 或者是 layer 的layoutSubLayers
+
 CA::Layer::display_if_needed();
-	[CALayer display];
-	[UIView drawRect];
+
+	这里会触发UIView 的drawRect 或者是 layer 的display	
 ```
 
-看到这样的堆栈，大家会想到什么呢？哎哟，是不是所有与UI相关的更新都会经过CA::Layer XXXXX ，这样的话，在Debug 模式下 hook 住其中一个函数，然后做一些判断UI 是否在主线程的判断。这样至少在开发过程中能发现一些问题。（Am i right ? FixMe）
+####看到这样的堆栈，大家会想到什么呢？
+
+首先在iOS 上几乎所有的东西都是通过Core Animation 绘制出来的。哎哟，是不是所有与UI相关的更新都会经过CA::Layer XXXXX ，这样的话，在Debug 模式下 hook 住其中一个函数，然后做一些判断UI 是否在主线程的判断。这样至少在开发过程中能发现一些问题。（Am i right ? FixMe）
 
 除此之外，autoreleasePool 也是通过观察者的方式来实现的。
 
